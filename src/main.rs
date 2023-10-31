@@ -47,26 +47,28 @@ fn main() {
     let sys_loop = EspSystemEventLoop::take().unwrap();
     let nvs = EspDefaultNvsPartition::take().unwrap();
 
-    let mut wifi_driver = EspWifi::new(peripherals.modem, sys_loop, Some(nvs)).unwrap();
+//    let mut wifi_driver = EspWifi::new(peripherals.modem, sys_loop, Some(nvs)).unwrap();
 
-    wifi_driver
-        .set_configuration(&Configuration::Client(ClientConfiguration {
-            ssid: "ssid".into(),
-            password: "password".into(),
-            ..Default::default()
-        }))
-        .unwrap();
+//    wifi_driver
+//        .set_configuration(&Configuration::Client(ClientConfiguration {
+//            ssid: "ssid".into(),
+//            password: "password".into(),
+//            ..Default::default()
+//        }))
+//        .unwrap();
 
-    wifi_driver.start().unwrap();
-    wifi_driver.connect().unwrap();
-    while !wifi_driver.is_connected().unwrap() {
-        let config = wifi_driver.get_configuration().unwrap();
-        println!("Waiting for station {:?}", config);
-    }
-    println!("Should be connected now");
+//    wifi_driver.start().unwrap();
+//    wifi_driver.connect().unwrap();
+//    while !wifi_driver.is_connected().unwrap() {
+//        let config = wifi_driver.get_configuration().unwrap();
+//        println!("Waiting for station {:?}", config);
+//    }
+//    println!("Should be connected now");
+
+    println!("getting started");
 
     let light_1 = Arc::new(Mutex::new(Device {
-        name: "roof vent".to_string(),
+        name: "bed light".to_string(),
         action: Action::Off,
         available_actions: Vec::from([
             Action::On,
@@ -76,7 +78,7 @@ fn main() {
             Action::Set,
         ]),
         default_target: 3,
-        duty_cycles: [0, 20, 40, 60, 80, 96],
+        duty_cycles: [0, 6, 12, 25, 50, 96],
         target: 0,
         freq_kHz: 1,
     }));
@@ -86,7 +88,7 @@ fn main() {
         peripherals.ledc.channel0,
         LedcTimerDriver::new(
             peripherals.ledc.timer0,
-            &TimerConfig::new().frequency(25.kHz().into()),
+            &TimerConfig::new().frequency(100.Hz().into()),
         ).unwrap(),
         peripherals.pins.gpio4,
     ).unwrap()));
@@ -98,8 +100,8 @@ fn main() {
     // around 0-3.6V
     // https://github.com/esp-rs/esp-idf-hal/blob/master/examples/adc.rs
     // https://apollolabsblog.hashnode.dev/esp32-standard-library-embedded-rust-analog-temperature-sensing-using-the-adc
-    let mut adc_pin_1: esp_idf_hal::adc::AdcChannelDriver<'_, Gpio5, Atten11dB<_>> = 
-        AdcChannelDriver::new(peripherals.pins.gpio5).unwrap();
+    let mut adc_pin_1: esp_idf_hal::adc::AdcChannelDriver<'_, Gpio19, Atten11dB<_>> = 
+        AdcChannelDriver::new(peripherals.pins.gpio19).unwrap();
     let mut adc_pin_1 = Arc::new(Mutex::new(adc_pin_1));
 
     // roof_vent Manager
@@ -108,7 +110,7 @@ fn main() {
     let adc_pin_1_clone = adc_pin_1.clone();
     thread::spawn(move || {
         let max_duty = { driver_1_clone.lock().unwrap().get_max_duty() };
-        let voltages = [680, 1360, 2040, 2720, 3400, 50000];
+        let voltages = [680, 1360, 2040, 2720, 3000, 50000];
         loop {
             {
                 let mut light = light_1_clone.lock().unwrap();
@@ -126,18 +128,21 @@ fn main() {
                 }
                 light.take_action(Action::Set, Some(i));
                 let duty_cycle = light.get_duty_cycle();
-                let duty_cycle = duty_cycle * max_duty;
+                println!("duty cycles, {}, {}", duty_cycle, max_duty);
+                let duty_cycle = duty_cycle * max_duty / 100;
                 driver_1_clone.lock().unwrap().set_duty(duty_cycle);
+                println!("looping stuff stuff, {}, {}, {}", voltage.to_string(), i, duty_cycle.to_string());
+ //               println!("looping stuff stuff");
             }
             Delay::delay_ms(100);
         }
     });
 
     loop {
-        println!(
-            "IP info: {:?}",
-            wifi_driver.sta_netif().get_ip_info().unwrap()
-        );
+//        println!(
+//            "IP info: {:?}",
+//            wifi_driver.sta_netif().get_ip_info().unwrap()
+//        );
         sleep(Duration::new(10, 0));
     }
 }
